@@ -2,9 +2,9 @@ import { Router } from "express";
 import connectionPool from "../utils/db.mjs";
 import validateQuestionData from "../middlewares/questiontValidation.mjs";
 
-const postQuestion = Router();
+const questionRouter = Router();
 
-postQuestion.post("/", validateQuestionData, async (req, res) => {
+questionRouter.post("/", validateQuestionData, async (req, res) => {
 
     const newQuestion = req.body;
   
@@ -28,7 +28,45 @@ postQuestion.post("/", validateQuestionData, async (req, res) => {
     }
   });
 
-postQuestion.get("/", async (req, res) => {
+  questionRouter.get("/search", async (req, res) => {
+    try {
+        const { category, title } = req.query;
+        
+        let query = "SELECT * FROM questions";
+        let values = [];
+        let conditions = [];
+        let counter = 1;
+        
+        if (title) {
+            conditions.push(`title ILIKE $${counter}`);
+            values.push(`%${title}%`);
+            counter++;
+          }
+
+        if (category) {
+            conditions.push(`category ILIKE $${counter}`);
+            values.push(`%${category}%`);
+            counter++;
+        }
+
+        if (conditions.length > 0) {
+            query += " WHERE " + conditions.join(" AND ");
+          }
+
+        const result = await connectionPool.query(query, values);
+
+        return res.status(200).json({
+        data: result.rows,
+        });
+        } catch (e) {
+            console.error(e);  
+            return res.status(500).json({
+            message: "Unable to fetch questions."
+            });
+    }
+});
+
+questionRouter.get("/", async (req, res) => {
     try {
 const result = await connectionPool.query("SELECT * FROM questions");
 return res.status(200).json({
@@ -42,7 +80,7 @@ data: result.rows,
   }
 });
 
-postQuestion.get("/:questionId", async (req, res) => {
+questionRouter.get("/:questionId", async (req, res) => {
     const questionId = req.params.questionId;
   
     try {
@@ -66,7 +104,7 @@ postQuestion.get("/:questionId", async (req, res) => {
     }
   });
 
-postQuestion.put("/:questionId", validateQuestionData, async (req, res) => {
+questionRouter.put("/:questionId", validateQuestionData, async (req, res) => {
     const questionId = req.params.questionId;  
     const { title, description, category } = req.body;  
   
@@ -103,7 +141,7 @@ postQuestion.put("/:questionId", validateQuestionData, async (req, res) => {
     }
   });
 
-postQuestion.delete("/:questionId", async (req, res) => {
+questionRouter.delete("/:questionId", async (req, res) => {
     const questionId = req.params.questionId;
   
     try {
@@ -130,4 +168,4 @@ postQuestion.delete("/:questionId", async (req, res) => {
     }
   });
 
-export default postQuestion;
+export default questionRouter;

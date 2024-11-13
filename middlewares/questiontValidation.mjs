@@ -1,4 +1,10 @@
 function validateQuestionData(req, res, next) {
+
+  if (!req.body || Object.keys(req.body).length === 0) {
+    return res.status(400).json({
+      message: "Invalid request data."
+    });
+  }
     const requiredFields = [
       { name: 'title', type: 'string' },
       { name: 'category', type: 'string' },
