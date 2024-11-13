@@ -8,10 +8,6 @@ const port = 4000;
 app.use(cors());
 app.use(express.json());
 
-// app.get("/test", (req, res) => {
-//   return res.json("Server API is working 🚀");
-// });
-
 app.use("/questions", postQuestion);
 
 app.listen(port, () => {

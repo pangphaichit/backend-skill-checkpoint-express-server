@@ -1,15 +1,16 @@
 import { Router } from "express";
 import connectionPool from "../utils/db.mjs";
+import validateQuestionData from "../middlewares/questiontValidation.mjs";
 
 const postQuestion = Router();
 
-postQuestion.post("/", async (req, res) => {
+postQuestion.post("/", validateQuestionData, async (req, res) => {
 
     const newQuestion = req.body;
   
     try {
       const query = `insert into questions (title, description, category)
-      values ($1, $2, $3) returning id`;
+      values ($1, $2, $3)`;
   
       const values = [
         newQuestion.title,
@@ -17,41 +18,40 @@ postQuestion.post("/", async (req, res) => {
         newQuestion.category,
       ];
   
-      const result = await connectionPool.query(query, values);
-      const questionId = result.rows[0].id;
-      return res.status(201).json({  message: `Question id: ${questionId} has been created successfully`, });
+      await connectionPool.query(query, values);
+      return res.status(201).json({  message: "Question created successfully." });
     } catch {
         console.error('Error details:', error); 
         return res.status(500).json({
-          message: "Server could not create question because database connection.",
+          message: "Unable to create question."
         });
     }
   });
 
 postQuestion.get("/", async (req, res) => {
     try {
-const result = await connectionPool.query("select * from questions");
+const result = await connectionPool.query("SELECT * FROM questions");
 return res.status(200).json({
 data: result.rows,
 });
 } catch (e) {
     console.error(e);  
     return res.status(500).json({
-      message: "Server could not read question because of a database connection issue"
+      message: "Unable to fetch questions."
     });
   }
 });
 
-postQuestion.get("/:id", async (req, res) => {
-    const id = req.params.id;
+postQuestion.get("/:questionId", async (req, res) => {
+    const questionId = req.params.questionId;
   
     try {
       const query = "SELECT * FROM questions WHERE id = $1";
-      const result = await connectionPool.query(query, [id]);
+      const result = await connectionPool.query(query, [questionId]);
   
       if (result.rows.length === 0) {
         return res.status(404).json({
-          message: "Server could not find a requested question"
+          message: "Question not found."
         });
       }
   
@@ -61,22 +61,22 @@ postQuestion.get("/:id", async (req, res) => {
     } catch (e) {
       console.error(e);  
       return res.status(500).json({
-        message: "Server could not read question because of a database connection issue"
+        message: "Unable to fetch questions."
       });
     }
   });
 
-postQuestion.put("/:id", async (req, res) => {
-    const id = req.params.id;  
+postQuestion.put("/:questionId", validateQuestionData, async (req, res) => {
+    const questionId = req.params.questionId;  
     const { title, description, category } = req.body;  
   
     try {
       const checkQuery = "SELECT * FROM questions WHERE id = $1";
-      const checkResult = await connectionPool.query(checkQuery, [id]);
+      const checkResult = await connectionPool.query(checkQuery, [questionId]);
   
       if (checkResult.rows.length === 0) {
         return res.status(404).json({
-          message: "Server could not find a requested question to update"
+          message: "Question not found."
         });
       }
   
@@ -86,47 +86,46 @@ postQuestion.put("/:id", async (req, res) => {
         WHERE id = $4
         RETURNING *;
       `;
-      const values = [title, description, category, id];
+      const values = [title, description, category, questionId];
   
       const updateResult = await connectionPool.query(updateQuery, values);
       const updatedQuestion = updateResult.rows[0];
   
       return res.status(200).json({
-        message: "Question updated successfully",
-        question: updatedQuestion,
+        message: "Question updated successfully"
       });
   
     } catch (e) {
       console.error(e);  
       return res.status(500).json({
-        message: "Server could not update question because of a database connection issue"
+        message: "Unable to fetch questions."
       });
     }
   });
 
-postQuestion.delete("/:id", async (req, res) => {
-    const id = req.params.id;
+postQuestion.delete("/:questionId", async (req, res) => {
+    const questionId = req.params.questionId;
   
     try {
       const checkQuery = "SELECT * FROM questions WHERE id = $1";
-      const result = await connectionPool.query(checkQuery, [id]);
+      const result = await connectionPool.query(checkQuery, [questionId]);
   
       if (result.rows.length === 0) {
         return res.status(404).json({
-          message: "Server could not find a requested question to delete",
+          message: "Question not found.",
         });
       }
   
       const deleteQuery = "DELETE FROM questions WHERE id = $1";
-      await connectionPool.query(deleteQuery, [id]);
+      await connectionPool.query(deleteQuery, [questionId]);
   
       return res.status(200).json({
-        message: `Question id: ${id} has been deleted successfully`,
+        message: "Question post has been deleted successfully.",
       });
     } catch (e) {
       console.error(e);
       return res.status(500).json({
-        message: "Server could not delete question because database connection",
+        message: "Unable to delete question."
       });
     }
   });
