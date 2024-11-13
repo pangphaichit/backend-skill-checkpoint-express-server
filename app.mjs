@@ -9,7 +9,7 @@ const port = 4000;
 app.use(cors());
 app.use(express.json());
 
-app.use("/questions", questionRouter);
+app.use("/questions", questionRouter);  
 
 app.listen(port, () => {
   console.log(`Server is running at ${port}`);

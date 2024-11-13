@@ -1,6 +1,7 @@
 import { Router } from "express";
 import connectionPool from "../utils/db.mjs";
-import validateQuestionData from "../middlewares/questiontValidation.mjs";
+import validateQuestionData from "../middlewares/questionValidation.mjs";
+import validateAnswerData from "../middlewares/AnswerValidation.mjs";
 
 const questionRouter = Router();
 
@@ -9,7 +10,7 @@ questionRouter.post("/", validateQuestionData, async (req, res) => {
     const newQuestion = req.body;
   
     try {
-      const query = `insert into questions (title, description, category)
+      const query = `INSERT INTO questions (title, description, category)
       values ($1, $2, $3)`;
   
       const values = [
@@ -167,5 +168,102 @@ questionRouter.delete("/:questionId", async (req, res) => {
       });
     }
   });
+
+  questionRouter.post("/:questionId/answers", validateAnswerData, async (req, res) => {
+    const questionId = req.params.questionId;
+    const newAnswer = req.body;
+  
+    try {
+      const checkQuestionQuery = "SELECT * FROM questions WHERE id = $1";
+      const checkQuestionResult = await connectionPool.query(checkQuestionQuery, [questionId]);
+  
+      if (checkQuestionResult.rows.length === 0) {
+        return res.status(404).json({
+          message: "Question not found."
+        });
+      }
+  
+      const query = `INSERT INTO answers (content, question_id) VALUES ($1, $2)`;
+      const values = [
+        newAnswer.content,
+        questionId
+      ];
+  
+      await connectionPool.query(query, values);
+  
+      return res.status(201).json({
+        message: "Answer created successfully."
+      });
+    } catch (error) {
+      console.error('Error details:', error); 
+      return res.status(500).json({
+        message: "Unable to create answer."
+      });
+    }
+  });
+
+  questionRouter.get("/:questionId/answers", async (req, res) => {
+    const { questionId } = req.params;  
+
+    try {
+        const query = `
+            SELECT id, content
+            FROM answers
+            WHERE question_id = $1
+        `;
+        const result = await connectionPool.query(query, [questionId]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                message: "Question not found."
+            });
+        }
+
+        return res.status(200).json({
+            data: result.rows
+        });
+    } catch (error) {
+        console.error('Error details:', error);
+        return res.status(500).json({
+            message: "Unable to fetch answers."
+        });
+    }
+});
+
+questionRouter.delete("/:questionId/answers", async (req, res) => {
+  const questionId = req.params.questionId;
+
+  try {
+    const checkQuestionQuery = "SELECT * FROM questions WHERE id = $1";
+    const checkQuestionResult = await connectionPool.query(checkQuestionQuery, [questionId]);
+
+    if (checkQuestionResult.rows.length === 0) {
+      return res.status(404).json({
+        message: "Question not found.",
+      });
+    }
+
+    const checkAnswersQuery = "SELECT * FROM answers WHERE question_id = $1";
+    const checkAnswersResult = await connectionPool.query(checkAnswersQuery, [questionId]);
+
+    if (checkAnswersResult.rows.length === 0) {
+      return res.status(404).json({
+        message: "No answers found for this question.",
+      });
+    }
+
+    const deleteAnswersQuery = "DELETE FROM answers WHERE question_id = $1";
+    await connectionPool.query(deleteAnswersQuery, [questionId]);
+
+    return res.status(200).json({
+      message: "All answers for the question have been deleted successfully.",
+    });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({
+      message: "Unable to delete answers."
+    });
+  }
+});
 
 export default questionRouter;
