@@ -2,6 +2,8 @@ import { Router } from "express";
 import connectionPool from "../utils/db.mjs";
 import validateQuestionData from "../middlewares/questionValidation.mjs";
 import validateAnswerData from "../middlewares/AnswerValidation.mjs";
+import validateVoteData from "../middlewares/voteValidation.mjs";
+import validateSearchParamsData from "../middlewares/searchValidation.mjs";
 
 const questionRouter = Router();
 
@@ -29,44 +31,58 @@ questionRouter.post("/", validateQuestionData, async (req, res) => {
     }
   });
 
-  questionRouter.get("/search", async (req, res) => {
+  questionRouter.get("/search", validateSearchParamsData, async (req, res) => {
     try {
-        const { category, title } = req.query;
-        
-        let query = "SELECT * FROM questions";
-        let values = [];
-        let conditions = [];
-        let counter = 1;
-        
-        if (title) {
-            conditions.push(`title ILIKE $${counter}`);
-            values.push(`%${title}%`);
-            counter++;
-          }
-
-        if (category) {
-            conditions.push(`category ILIKE $${counter}`);
-            values.push(`%${category}%`);
-            counter++;
+      let { category, title } = req.query;
+  
+      const normalizedCategory = category ? category.toLowerCase() : null;
+      const normalizedTitle = title ? title.toLowerCase() : null;
+  
+      let query = "SELECT * FROM questions";
+      let values = [];
+      let conditions = [];
+      let counter = 1;
+  
+      if (normalizedTitle) {
+        conditions.push(`title ILIKE $${counter}`);
+        values.push(`%${normalizedTitle}%`);
+        counter++;
+      }
+  
+      if (normalizedCategory) {
+        if (normalizedCategory === "null") {
+          conditions.push(`category IS NULL`);
+        } else {
+          conditions.push(`category ILIKE $${counter}`);
+          values.push(`%${normalizedCategory}%`);
+          counter++;
         }
+      }
+ 
+      if (conditions.length > 0) {
+        query += " WHERE " + conditions.join(" AND ");
+      }
 
-        if (conditions.length > 0) {
-            query += " WHERE " + conditions.join(" AND ");
-          }
-
-        const result = await connectionPool.query(query, values);
-
-        return res.status(200).json({
+      const result = await connectionPool.query(query, values);
+  
+      if (result.rows.length === 0) {
+        console.log("No matching questions found.");
+        return res.status(404).json({ message: "Question not found." });
+      }
+  
+      return res.status(200).json({
         data: result.rows,
-        });
-        } catch (e) {
-            console.error(e);  
-            return res.status(500).json({
-            message: "Unable to fetch questions."
-            });
+      });
+  
+    } catch (e) {
+      console.error("Error executing query: ", e);
+  
+      return res.status(500).json({
+        message: "Unable to fetch questions.",
+      });
     }
-});
-
+  });
+  
 questionRouter.get("/", async (req, res) => {
     try {
 const result = await connectionPool.query("SELECT * FROM questions");
@@ -206,6 +222,15 @@ questionRouter.delete("/:questionId", async (req, res) => {
     const { questionId } = req.params;  
 
     try {
+        const checkQuestionQuery = "SELECT * FROM questions WHERE id = $1";
+        const checkQuestionResult = await connectionPool.query(checkQuestionQuery, [questionId]);
+
+        if (checkQuestionResult.rows.length === 0) {
+            return res.status(404).json({
+                message: "Question not found."
+            });
+        }
+
         const query = `
             SELECT id, content
             FROM answers
@@ -215,7 +240,7 @@ questionRouter.delete("/:questionId", async (req, res) => {
 
         if (result.rows.length === 0) {
             return res.status(404).json({
-                message: "Question not found."
+                message: "No answers found for this question."
             });
         }
 
@@ -265,5 +290,49 @@ questionRouter.delete("/:questionId/answers", async (req, res) => {
     });
   }
 });
+
+questionRouter.post("/:questionId/vote", validateVoteData, async (req, res) => {
+  const { questionId } = req.params;
+  const { vote } = req.body;
+
+  try {
+    const checkQuestionQuery = 'SELECT * FROM questions WHERE id = $1';
+    const questionResult = await connectionPool.query(checkQuestionQuery, [questionId]);
+
+    if (questionResult.rows.length === 0) {
+      return res.status(404).json({
+        message: "Question not found."
+      });
+    }
+
+    const checkVoteQuery = 'SELECT * FROM question_votes WHERE question_id = $1';
+    const voteResult = await connectionPool.query(checkVoteQuery, [questionId]);
+
+    if (voteResult.rows.length > 0) {
+      const updateVoteQuery = 'UPDATE question_votes SET vote = $1 WHERE question_id = $2';
+      await connectionPool.query(updateVoteQuery, [vote, questionId]);
+
+      return res.status(200).json({
+        message: "Vote on the question has been recorded successfully."
+      });
+    } 
+
+    else {
+      const insertVoteQuery = 'INSERT INTO question_votes (question_id, vote) VALUES ($1, $2)';
+      await connectionPool.query(insertVoteQuery, [questionId, vote]);
+
+      return res.status(201).json({
+        message: "Vote on the question has been recorded successfully."
+      });
+    }
+
+  } catch (error) {
+    console.error('Error details:', error);
+    return res.status(500).json({
+      message: "Unable to vote question."
+    });
+  }
+});
+
 
 export default questionRouter;
