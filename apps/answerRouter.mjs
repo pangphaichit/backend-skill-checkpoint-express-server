@@ -4,6 +4,44 @@ import validateVoteData from "../middlewares/voteValidation.mjs";
 
 const answerRouter = Router();
 
+/**
+ * @swagger
+ * /answers/{answerId}/vote:
+ *   post:
+ *     summary: Vote on an answer
+ *     description: Allows users to vote on an answer. If the vote already exists, it will be updated.
+ *     tags:
+ *       - Answers
+ *     parameters:
+ *       - in: path
+ *         name: answerId
+ *         required: true
+ *         description: The ID of the answer to vote on.
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               vote:
+ *                 type: integer
+ *                 example: 1  
+ *             required:
+ *               - vote
+ *     responses:
+ *       200:
+ *         description: Vote on the answer has been recorded successfully.
+ *       201:
+ *         description: Vote on the answer has been recorded successfully.
+ *       404:
+ *         description: Answer not found.
+ *       500:
+ *         description: Unable to vote on the answer.
+ */
+
 answerRouter.post("/:answerId/vote", validateVoteData, async (req, res) => {
   const { answerId } = req.params; 
   const { vote } = req.body; 
